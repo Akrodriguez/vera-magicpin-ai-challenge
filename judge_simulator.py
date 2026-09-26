@@ -22,7 +22,7 @@ Author: magicpin AI Challenge Team
 
 # Your bot's URL (where your bot is running)
 import os
-BOT_URL = os.getenv("BOT_URL", "http://localhost:8080")
+BOT_URL = os.getenv("BOT_URL", "https://vera-magicpin-ai-challenge.onrender.com")
 
 # Choose your LLM provider: "openai", "anthropic", "gemini", "deepseek", "groq", "ollama", "openrouter", "mock"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
