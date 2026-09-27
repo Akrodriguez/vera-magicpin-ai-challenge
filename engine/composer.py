@@ -614,21 +614,42 @@ class VeraComposer:
             "rationale": f"Anxiety pre-emption reframing a {delta}% dip as predictable seasonality, protecting merchant ad budget and proposing retention challenge.",
         }
 
-    def _handle_curious_ask_due(self, **ctx) -> dict[str, Any]:
-        salutation = ctx["salutation"]
-        m_name = ctx["m_name"]
+        def _handle_curious_ask_due(self, **ctx) -> dict[str, Any]:
+            salutation = ctx["salutation"]
+            m_name = ctx["m_name"]
+            locality = ctx["locality"]
+            active_offer = ctx["active_offer"]
 
-        body = (
-            f"Hi {salutation}! Quick check — what service has been most asked-for this week at {m_name}? "
-            f"I'll turn the answer into a Google post + a 4-line WhatsApp reply you can use when customers ask about pricing. Takes 5 min."
-        )
-        return {
-            "body": body,
-            "cta": "open_ended",
-            "template_name": "vera_curious_ask_v1",
-            "template_params": [salutation, m_name],
-            "rationale": "Low-friction curiosity lever asking the merchant with explicit reciprocal value promised (Google post + WhatsApp reply draft in 5 min).",
-        }
+            offer_text = (
+                f" I can also work your active offer, '{active_offer}', into the draft."
+                if active_offer
+                else ""
+            )
+
+            body = (
+                f"{salutation}, quick check for {m_name} in {locality}: "
+                f"which service or product has been getting the most customer questions "
+                f"this week? "
+                f"I'll turn your answer into a ready-to-use Google post + "
+                f"4-line WhatsApp reply.{offer_text} "
+                f"Want me to draft it?"
+            )
+
+            return {
+                "body": body,
+                "cta": "open_ended",
+                "template_name": "vera_curious_ask_v2",
+                "template_params": [
+                    salutation,
+                    m_name,
+                    locality,
+                ],
+                "rationale": (
+                    "Low-friction merchant discovery question grounded in merchant name, "
+                    "locality, and active offer when supplied, with a concrete reusable "
+                    "content deliverable."
+                ),
+            }
 
     def _handle_winback_eligible(self, **ctx) -> dict[str, Any]:
         salutation = ctx["salutation"]

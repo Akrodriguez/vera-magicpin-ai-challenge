@@ -569,6 +569,8 @@ RESPOND ONLY WITH THIS EXACT JSON FORMAT:
               trigger: Dict, customer: Dict = None) -> ScoreResult:
         """Score a message and return detailed results."""
 
+        time.sleep(7)
+
         body = action.get("body", "")
 
         prompt = f"""SCORE THIS MESSAGE:
@@ -608,29 +610,95 @@ Score each dimension 0-10 with clear reasoning. Be STRICT."""
             return self._fallback_score(action)
 
     def _parse_response(self, response: str, action: Dict) -> ScoreResult:
-        """Parse LLM JSON response."""
+        """Parse LLM JSON response robustly.
+
+        Gemini and other LLMs can occasionally return a valid JSON object with
+        one numeric field containing prose instead of a number. A malformed
+        field should not invalidate the entire score.
+        """
         match = re.search(r'\{[\s\S]*\}', response)
         if not match:
             return self._fallback_score(action)
 
         try:
             data = json.loads(match.group())
+
+            def safe_int(value, default=5):
+                """Convert an LLM score to an integer in the 0-10 range."""
+                if isinstance(value, bool):
+                    return default
+
+                if isinstance(value, (int, float)):
+                    return min(10, max(0, int(value)))
+
+                if isinstance(value, str):
+                    try:
+                        return min(10, max(0, int(float(value.strip()))))
+                    except (ValueError, TypeError):
+                        return default
+
+                return default
+
+            def safe_str(value, default=""):
+                """Keep explanatory fields printable even if the LLM returns non-text."""
+                if value is None:
+                    return default
+                if isinstance(value, str):
+                    return value
+                return str(value)
+
+            penalty_reasons = data.get("penalty_reasons", [])
+            if not isinstance(penalty_reasons, list):
+                penalty_reasons = [safe_str(penalty_reasons)]
+
             result = ScoreResult(
-                specificity=min(10, max(0, int(data.get("specificity", 5)))),
-                specificity_reason=data.get("specificity_reason", ""),
-                category_fit=min(10, max(0, int(data.get("category_fit", 5)))),
-                category_fit_reason=data.get("category_fit_reason", ""),
-                merchant_fit=min(10, max(0, int(data.get("merchant_fit", 5)))),
-                merchant_fit_reason=data.get("merchant_fit_reason", ""),
-                decision_quality=min(10, max(0, int(data.get("decision_quality", data.get("trigger_relevance", 5))))),
-                decision_quality_reason=data.get("decision_quality_reason", data.get("trigger_relevance_reason", "")),
-                engagement_compulsion=min(10, max(0, int(data.get("engagement_compulsion", 5)))),
-                engagement_reason=data.get("engagement_reason", ""),
-                hint=data.get("hint", "")
+                specificity=safe_int(data.get("specificity", 5)),
+                specificity_reason=safe_str(
+                    data.get("specificity_reason", "")
+                ),
+
+                category_fit=safe_int(data.get("category_fit", 5)),
+                category_fit_reason=safe_str(
+                    data.get("category_fit_reason", "")
+                ),
+
+                merchant_fit=safe_int(data.get("merchant_fit", 5)),
+                merchant_fit_reason=safe_str(
+                    data.get("merchant_fit_reason", "")
+                ),
+
+                decision_quality=safe_int(
+                    data.get(
+                        "decision_quality",
+                        data.get("trigger_relevance", 5)
+                    )
+                ),
+                decision_quality_reason=safe_str(
+                    data.get(
+                        "decision_quality_reason",
+                        data.get("trigger_relevance_reason", "")
+                    )
+                ),
+
+                engagement_compulsion=safe_int(
+                    data.get("engagement_compulsion", 5)
+                ),
+                engagement_reason=safe_str(
+                    data.get("engagement_reason", "")
+                ),
+
+                penalties=safe_int(data.get("penalties", 0), 0),
+                penalty_reasons=penalty_reasons,
+                hint=safe_str(data.get("hint", ""))
             )
+
             return result
-        except Exception as e:
+
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
             print_warn(f"Parse error: {e}")
+            return self._fallback_score(action)
+        except Exception as e:
+            print_warn(f"Unexpected parse error: {e}")
             return self._fallback_score(action)
 
     def _fallback_score(self, action: Dict) -> ScoreResult:
